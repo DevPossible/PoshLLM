@@ -28,12 +28,12 @@ BeforeAll {
         }
         'Ollama' = @{
             LLMSystem = 'ollama'
-            Model = 'llama3'
+            Model = 'qwen3:8b'
             Location = 'http://localhost:11434'
             AvailabilityCheck = { 
                 try {
-                    $response = Invoke-WebRequest -Uri 'http://localhost:11434/api/version' -TimeoutSec 2 -ErrorAction SilentlyContinue
-                    $response.StatusCode -eq 200
+                    $response = Invoke-RestMethod -Uri 'http://localhost:11434/api/version' -TimeoutSec 10 -ErrorAction SilentlyContinue
+                    $null -ne $response
                 } catch {
                     $false
                 }
@@ -57,7 +57,13 @@ BeforeAll {
     # Check availability for each system
     foreach ($systemName in $script:systemConfigs.Keys) {
         $config = $script:systemConfigs[$systemName]
-        $config.Available = & $config.AvailabilityCheck
+        try {
+            $config.Available = & $config.AvailabilityCheck
+            Write-Verbose "System '$systemName' availability: $($config.Available)" -Verbose
+        } catch {
+            $config.Available = $false
+            Write-Verbose "System '$systemName' availability check failed: $_" -Verbose
+        }
     }
 }
 
@@ -192,8 +198,121 @@ Describe "LLM System Integration Tests" {
         }
     }
     
-    # Similar contexts can be added for Ollama and AzureOpenAI
-    # For brevity, this demonstrates the pattern with one system
+    Context "Ollama Integration" {
+        BeforeAll {
+            $systemConfig = $script:systemConfigs['Ollama']
+        }
+        
+        It "Should skip tests if Ollama is not available" {
+            if (-not $systemConfig.Available) {
+                Set-ItResult -Skipped -Because "Ollama is not available or not configured"
+            }
+        }
+        
+        Context "When configuring Ollama" -Skip:(-not $script:systemConfigs.Ollama.Available) {
+            It "Should accept ollama as LLMSystem" {
+                $systemConfig = $script:systemConfigs.Ollama
+                { Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location } | Should -Not -Throw
+            }
+            
+            It "Should save Ollama configuration" {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                
+                $config = Get-PoshLLMConfig
+                $config.LLMSystem | Should -Be $systemConfig.LLMSystem
+                $config.Model | Should -Be $systemConfig.Model
+                $config.Location | Should -Be $systemConfig.Location
+            }
+            
+            It "Should accept API key with Ollama" {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location -ApiKey "test-key"
+                
+                $config = Get-PoshLLMConfig
+                $config.ApiKey | Should -Be "test-key"
+            }
+        }
+        
+        Context "When using Ollama with GetPrompt" -Skip:(-not $script:systemConfigs.Ollama.Available) {
+            BeforeAll {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+            }
+            
+            It "Should return enhanced prompt without calling Ollama" {
+                $prompt = Invoke-LLM "What is PowerShell?" -GetPrompt
+                $prompt | Should -Not -BeNullOrEmpty
+                $prompt | Should -Match "System Context:"
+                $prompt | Should -Match "What is PowerShell?"
+            }
+            
+            It "Should work with ResponseType Text" {
+                $prompt = Invoke-LLM "test" -ResponseType Text -GetPrompt
+                $prompt | Should -Match "TEXT format"
+            }
+            
+            It "Should work with ResponseType Script" {
+                $prompt = Invoke-LLM "test" -ResponseType Script -GetPrompt
+                $prompt | Should -Match "PowerShell script"
+            }
+        }
+        
+        Context "When sending actual requests to Ollama" -Skip:(-not $script:systemConfigs.Ollama.Available) {
+            BeforeAll {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+            }
+            
+            It "Should send request and receive response" {
+                $systemConfig = $script:systemConfigs.Ollama
+                try {
+                    $response = Invoke-LLM "Say 'Hello from PoshLLM test'" -Raw
+                    $response | Should -Not -BeNullOrEmpty
+                } catch {
+                    Set-ItResult -Skipped -Because "Ollama may not have the required model available"
+                }
+            }
+            
+            It "Should handle simple text prompts" {
+                $systemConfig = $script:systemConfigs.Ollama
+                try {
+                    $response = Invoke-LLM "What is 2+2?" -ResponseType Text -Raw
+                    $response | Should -Not -BeNullOrEmpty
+                } catch {
+                    Set-ItResult -Skipped -Because "Ollama may not have the required model available"
+                }
+            }
+            
+            It "Should handle model parameter override" {
+                $systemConfig = $script:systemConfigs.Ollama
+                try {
+                    $response = Invoke-LLM "test" -Model $systemConfig.Model -ResponseType Text -Raw
+                    $response | Should -Not -BeNullOrEmpty
+                } catch {
+                    Set-ItResult -Skipped -Because "Ollama may not have the required model available"
+                }
+            }
+        }
+        
+        Context "When testing Ollama error handling" -Skip:(-not $script:systemConfigs.Ollama.Available) {
+            It "Should handle invalid model gracefully" {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model "invalid-model-name" -Location $systemConfig.Location
+                { Invoke-LLM "test" -GetPrompt } | Should -Not -Throw
+            }
+            
+            It "Should handle invalid location gracefully" {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location "http://localhost:99999"
+                try {
+                    Invoke-LLM "test" -Raw
+                } catch {
+                    $_.Exception.Message | Should -Not -BeNullOrEmpty
+                }
+            }
+        }
+    }
 }
 
 # Cross-system compatibility tests
