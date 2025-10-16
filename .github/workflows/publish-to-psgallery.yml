@@ -22,71 +22,35 @@ jobs:
       run: |
         Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
         
-    - name: Test Module Manifest
+    - name: Run Tests
       shell: pwsh
       run: |
-        Write-Host "Testing module manifest..."
-        $manifest = Test-ModuleManifest -Path ".\PoshLLM.psd1" -ErrorAction Stop
-        Write-Host "Module: $($manifest.Name)"
-        Write-Host "Version: $($manifest.Version)"
-        Write-Host "Author: $($manifest.Author)"
-        Write-Host "Functions: $($manifest.ExportedFunctions.Count)"
+        Write-Host "Running tests..." -ForegroundColor Green
+        & ".\test.ps1"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Tests failed. Build aborted."
+          exit 1
+        }
         
-    - name: Import Module
+    - name: Build Module
       shell: pwsh
       run: |
-        Write-Host "Importing module..."
-        Import-Module ".\PoshLLM.psd1" -Force -ErrorAction Stop
-        Write-Host "Module imported successfully"
-        
-    - name: Get Module Info
-      shell: pwsh
-      run: |
-        Write-Host "Getting module information..."
-        $commands = Get-Command -Module PoshLLM
-        Write-Host "Exported commands: $($commands.Count)"
-        $commands | ForEach-Object { Write-Host "  - $($_.Name)" }
-        
-    - name: Check if version exists on PowerShell Gallery
-      shell: pwsh
-      run: |
-        $manifest = Test-ModuleManifest -Path ".\PoshLLM.psd1"
-        $currentVersion = $manifest.Version
-        Write-Host "Current module version: $currentVersion"
-        
-        try {
-          $galleryModule = Find-Module -Name PoshLLM -ErrorAction SilentlyContinue
-          if ($galleryModule) {
-            $galleryVersion = $galleryModule.Version
-            Write-Host "PowerShell Gallery version: $galleryVersion"
-            
-            if ($currentVersion -le $galleryVersion) {
-              Write-Host "::error::Current version ($currentVersion) is not greater than gallery version ($galleryVersion). Please increment the version in PoshLLM.psd1"
-              exit 1
-            }
-          } else {
-            Write-Host "Module not found in gallery - this will be the first publication"
-          }
-        } catch {
-          Write-Host "Could not check gallery version - proceeding with publication"
+        Write-Host "Building module..." -ForegroundColor Green
+        & ".\build.ps1" -SkipTests
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Build failed."
+          exit 1
         }
         
     - name: Publish to PowerShell Gallery
       shell: pwsh
       env:
-        NUGET_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
       run: |
-        if ([string]::IsNullOrEmpty($env:NUGET_API_KEY)) {
-          Write-Host "::error::PowerShell Gallery API key is not set. Please add PSGALLERY_API_KEY to repository secrets."
-          exit 1
-        }
-        
-        Write-Host "Publishing module to PowerShell Gallery..."
-        try {
-          Publish-Module -Path "." -NuGetApiKey $env:NUGET_API_KEY -Repository PSGallery -Verbose -ErrorAction Stop
-          Write-Host "::notice::Module published successfully to PowerShell Gallery!"
-        } catch {
-          Write-Host "::error::Failed to publish module: $_"
+        Write-Host "Publishing module to PowerShell Gallery..." -ForegroundColor Green
+        & ".\publish.ps1" -ApiKey $env:PSGALLERY_API_KEY -BuildPath ".\build"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Publish failed."
           exit 1
         }
         
