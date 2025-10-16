@@ -21,6 +21,7 @@ Thumbs.db
 *.log
 
 # Build output
+build/
 bin/
 obj/
 *.dll

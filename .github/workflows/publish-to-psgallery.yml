@@ -1,0 +1,109 @@
+name: Publish to PowerShell Gallery
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Source/**'
+      - 'PoshLLM.psd1'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup PowerShell
+      shell: pwsh
+      run: |
+        Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+        
+    - name: Test Module Manifest
+      shell: pwsh
+      run: |
+        Write-Host "Testing module manifest..."
+        $manifest = Test-ModuleManifest -Path ".\PoshLLM.psd1" -ErrorAction Stop
+        Write-Host "Module: $($manifest.Name)"
+        Write-Host "Version: $($manifest.Version)"
+        Write-Host "Author: $($manifest.Author)"
+        Write-Host "Functions: $($manifest.ExportedFunctions.Count)"
+        
+    - name: Import Module
+      shell: pwsh
+      run: |
+        Write-Host "Importing module..."
+        Import-Module ".\PoshLLM.psd1" -Force -ErrorAction Stop
+        Write-Host "Module imported successfully"
+        
+    - name: Get Module Info
+      shell: pwsh
+      run: |
+        Write-Host "Getting module information..."
+        $commands = Get-Command -Module PoshLLM
+        Write-Host "Exported commands: $($commands.Count)"
+        $commands | ForEach-Object { Write-Host "  - $($_.Name)" }
+        
+    - name: Check if version exists on PowerShell Gallery
+      shell: pwsh
+      run: |
+        $manifest = Test-ModuleManifest -Path ".\PoshLLM.psd1"
+        $currentVersion = $manifest.Version
+        Write-Host "Current module version: $currentVersion"
+        
+        try {
+          $galleryModule = Find-Module -Name PoshLLM -ErrorAction SilentlyContinue
+          if ($galleryModule) {
+            $galleryVersion = $galleryModule.Version
+            Write-Host "PowerShell Gallery version: $galleryVersion"
+            
+            if ($currentVersion -le $galleryVersion) {
+              Write-Host "::error::Current version ($currentVersion) is not greater than gallery version ($galleryVersion). Please increment the version in PoshLLM.psd1"
+              exit 1
+            }
+          } else {
+            Write-Host "Module not found in gallery - this will be the first publication"
+          }
+        } catch {
+          Write-Host "Could not check gallery version - proceeding with publication"
+        }
+        
+    - name: Publish to PowerShell Gallery
+      shell: pwsh
+      env:
+        NUGET_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+      run: |
+        if ([string]::IsNullOrEmpty($env:NUGET_API_KEY)) {
+          Write-Host "::error::PowerShell Gallery API key is not set. Please add PSGALLERY_API_KEY to repository secrets."
+          exit 1
+        }
+        
+        Write-Host "Publishing module to PowerShell Gallery..."
+        try {
+          Publish-Module -Path "." -NuGetApiKey $env:NUGET_API_KEY -Repository PSGallery -Verbose -ErrorAction Stop
+          Write-Host "::notice::Module published successfully to PowerShell Gallery!"
+        } catch {
+          Write-Host "::error::Failed to publish module: $_"
+          exit 1
+        }
+        
+    - name: Create Release Summary
+      shell: pwsh
+      run: |
+        $manifest = Test-ModuleManifest -Path ".\PoshLLM.psd1"
+        $version = $manifest.Version
+        
+        Write-Host "## Publication Summary" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "- **Module**: PoshLLM" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "- **Version**: $version" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "- **Published to**: PowerShell Gallery" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "- **Gallery URL**: https://www.powershellgallery.com/packages/PoshLLM/$version" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "### Installation" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host '```powershell' >> $env:GITHUB_STEP_SUMMARY
+        Write-Host "Install-Module -Name PoshLLM -RequiredVersion $version" >> $env:GITHUB_STEP_SUMMARY
+        Write-Host '```' >> $env:GITHUB_STEP_SUMMARY

@@ -12,3 +12,16 @@
 ## Testing Procedures
 - After minor changes, run the unit tests to ensure no regressions
 - After major changes, re-run the integration tests to verify full functionality
+
+## AI-Generated Artifacts and Temporary Files
+- **ALL** AI-generated temporary files, analysis documents, test scripts, and artifacts MUST be placed in the `.aiwork` folder
+- This includes but is not limited to:
+  - Test coverage analysis reports
+  - Test coverage recommendations
+  - Temporary test scripts
+  - Analysis documents
+  - Planning documents
+  - Any other non-permanent work files
+- The `.aiwork` folder is specifically designated for AI assistant work products that are not meant to be checked into version control
+- Never place temporary AI-generated files in main code folders (Source/, Tests/, root directory, etc.)
+- Only place files outside of `.aiwork` when they are meant to be permanent additions to the codebase
