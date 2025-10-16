@@ -1,0 +1,14 @@
+# PoshLLM Development Rules
+
+## PowerShell Version Compatibility
+- Only use PowerShell 7 syntax
+- Ensure all code is compatible with PowerShell 7+ versions
+
+## Shell Command Execution
+- Only use PowerShell commands for running tool actions when using shell commands
+- Avoid using native shell commands directly when PowerShell equivalents exist
+- Prefer PowerShell cmdlets and modules over external executables where possible
+
+## Testing Procedures
+- After minor changes, run the unit tests to ensure no regressions
+- After major changes, re-run the integration tests to verify full functionality
