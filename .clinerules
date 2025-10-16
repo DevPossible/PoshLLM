@@ -13,6 +13,33 @@
 - After minor changes, run the unit tests to ensure no regressions
 - After major changes, re-run the integration tests to verify full functionality
 
+## PowerShell Script Validation
+- All generated PowerShell scripts must use valid cmdlet names, parameters, and parameter values
+- Before generating any PowerShell code:
+  - Verify cmdlet names are correct and available in PowerShell 7+
+  - Ensure parameter names are valid for the cmdlets being used
+  - Validate parameter values match the expected types (string, int, bool, arrays, hashtables, etc.)
+  - Use proper PowerShell syntax for arrays `@()`, hashtables `@{}`, and splatting `@SplattedParams`
+- Common validation checks:
+  - Parameter names must start with `-` when calling cmdlets
+  - String values should be properly quoted when containing spaces or special characters
+  - Boolean parameters should use `$true`/`$false` or be specified as switches
+  - Paths should use PowerShell-compatible formats (forward slashes or escaped backslashes)
+  - Enum values must match valid enumeration values for the parameter
+- Test generated scripts mentally or document assumptions about cmdlet behavior
+- When uncertain about parameter validity, add comments explaining the intended behavior
+
+## Task Completion and Changelog
+- As the **last step** of every completed task, update the `.aiwork/changelog.md` file
+- The changelog should document:
+  - Date and time of the task completion
+  - Brief description of what was accomplished
+  - Files that were modified or created
+  - Any important notes or considerations
+- Use markdown format with proper headings and bullet points
+- Keep entries concise but informative
+- This helps track the evolution of the project and AI contributions over time
+
 ## AI-Generated Artifacts and Temporary Files
 - **ALL** AI-generated temporary files, analysis documents, test scripts, and artifacts MUST be placed in the `.aiwork` folder
 - This includes but is not limited to:

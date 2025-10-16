@@ -51,11 +51,14 @@ Import-Module PoshLLM
 ### 2. Configure Your LLM Connection
 
 ```powershell
-# Use defaults (Ollama on localhost:11434 with qwen3:8b model)
+# Use defaults (Ollama on localhost:11434)
 Set-PoshLLMConfiguration
 
-# Or specify custom settings
-Set-PoshLLMConfiguration -LLMSystem "ollama" -Model "llama3:latest" -URL "http://localhost:11434"
+# Or specify custom settings for Ollama
+Set-PoshLLMConfiguration -LLMSystem "ollama" -Model "llama3:latest" -Location "http://localhost:11434"
+
+# Or configure for ClaudeCode CLI
+Set-PoshLLMConfiguration -LLMSystem "claudecode" -Model "claude-3.5-sonnet" -Location "claude" -ApiKey "your-api-key"
 ```
 
 ### 3. Start Using LLMs in PowerShell!
@@ -77,9 +80,8 @@ ask "How do I list running processes sorted by memory usage?"
 
 The module comes with sensible defaults:
 - **LLM System**: ollama
-- **Model**: qwen3:8b
-- **URL**: http://localhost:11434
-- **Context Size**: 4096
+- **Location**: http://localhost:11434 (for ollama) or "claude" (for claudecode)
+- **Context Size**: 4096 (maximum 65536 bytes / 64KB)
 
 Configure once and use throughout your session:
 
@@ -87,11 +89,17 @@ Configure once and use throughout your session:
 # Minimal configuration (uses defaults)
 Set-PoshLLMConfiguration
 
-# Full configuration
+# Full configuration for Ollama
 Set-PoshLLMConfiguration -LLMSystem "ollama" `
                          -Model "mistral:latest" `
-                         -URL "http://localhost:11434" `
+                         -Location "http://localhost:11434" `
                          -ContextSize 8192
+
+# Configuration for ClaudeCode
+Set-PoshLLMConfiguration -LLMSystem "claudecode" `
+                         -Model "claude-3.5-sonnet" `
+                         -Location "claude" `
+                         -ApiKey "your-api-key"
 
 # Using the backward-compatible alias
 Configure-PoshLLM -Model "llama3:8b"
@@ -145,14 +153,25 @@ llm "Write a function to list all running services"
 ### Override Configuration Per Command
 
 ```powershell
-# Use a different model for one query
-Invoke-LLM -Prompt "Explain recursion" -Model "codellama:latest"
+# Use a different configuration for one query
+Invoke-LLM -Prompt "Explain recursion" -Config @{Model = "codellama:latest"}
 
-# Use different URL temporarily
-Invoke-LLM -Prompt "Write a Get function" -URL "http://remote-llm:11434"
+# Override with a different LLM system temporarily
+Invoke-LLM -Prompt "Write a Get function" -Config @{LLMSystem = "claudecode"; Model = "claude-3.5-sonnet"}
 
-# Override multiple parameters
-Invoke-LLM -Prompt "Complex query" -Model "llama3:70b" -ContextSize 16384
+# Control response format
+Invoke-LLM -Prompt "List 10 boy names" -ResponseType Data -DataFormat CSV
+Invoke-LLM -Prompt "Get running processes" -ResponseType Script
+Invoke-LLM -Prompt "What is PowerShell?" -ResponseType Text
+
+# Include console context for error analysis
+ai "why did this command fail?" -IncludeContext 5
+
+# Get raw response for scripting
+$response = ai "Create a function Get-LargeFiles" -Raw
+
+# Preview the prompt without sending it
+$prompt = ai "list files" -IncludeContext 5 -GetPrompt
 ```
 
 ### Available Commands
@@ -229,7 +248,7 @@ PoshLLM works with [Ollama](https://ollama.ai/), a local LLM runtime.
 ## ❓ FAQ
 
 ### Q: Can I use models other than Ollama?
-A: Currently, PoshLLM is designed for Ollama. Support for other LLM systems (OpenAI, Azure OpenAI, etc.) may be added in future versions.
+A: Yes! PoshLLM now supports both Ollama and ClaudeCode CLI. Support for additional LLM systems (OpenAI, Azure OpenAI, etc.) may be added in future versions.
 
 ### Q: Is my data sent to the cloud?
 A: When using Ollama, PoshLLM connects to your Ollama instance. All processing happens on your instance.

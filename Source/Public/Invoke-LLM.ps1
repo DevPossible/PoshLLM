@@ -152,7 +152,7 @@ function Invoke-LLM {
                 }
             }
             'Script' {
-                $formatInstructions = "Respond with a PowerShell script compatible with PowerShell version $psVersion and OS: $osVersion. Wrap the script in a code block using triple backticks."
+                $formatInstructions = "Respond with a PowerShell script compatible with PowerShell version $psVersion and OS: $osVersion. Wrap the script in a code block using triple backticks.`n`nIMPORTANT: Ensure all PowerShell commands use valid cmdlet names, valid parameter names, and valid parameter values. Verify that:`n- All cmdlet names exist in PowerShell $psVersion`n- All parameter names are valid for the cmdlets being used`n- All parameter values match the expected types (string, int, bool, arrays, hashtables, etc.)`n- Parameter names start with '-' when calling cmdlets`n- String values are properly quoted when containing spaces or special characters`n- Boolean parameters use `$true/`$false or are specified as switches`n- Paths use PowerShell-compatible formats`n- Enum values match valid enumeration values for the parameter`n- When a grave mark (```) appears in double quotes, escape it as double grave (````````) `n- When using string interpolation with variables followed by special characters (like colons), wrap the variable in `$() syntax: e.g., `"`$(`$name): `$value`" instead of `"`$name: `$value`""
             }
         }
     } else {
@@ -163,6 +163,17 @@ function Invoke-LLM {
         $formatInstructions = 'If this is a REQUEST FOR INFORMATION or an ANSWER to a question: Respond in clear TEXT format.'
         $formatInstructions += $nl + 'If this is a REQUEST FOR DATA: Respond in the format explicitly requested by the user (CSV, JSON, XML, etc.). If no specific format is mentioned, use JSON format.'
         $formatInstructions += $nl + "If this is a REQUEST TO ACCOMPLISH A TASK or execute an action (especially involving system-level operations like listing processes, checking ports, managing files, registry operations, services, network connections, or any system administration task): Respond with the correct PowerShell script compatible with PowerShell version $psv and OS: $osv. Wrap the script in a code block using triple backticks."
+        $formatInstructions += $nl + $nl + "IMPORTANT for PowerShell scripts: Ensure all PowerShell commands use valid cmdlet names, valid parameter names, and valid parameter values. Verify that:"
+        $formatInstructions += $nl + "- All cmdlet names exist in PowerShell $psv"
+        $formatInstructions += $nl + "- All parameter names are valid for the cmdlets being used"
+        $formatInstructions += $nl + "- All parameter values match the expected types (string, int, bool, arrays, hashtables, etc.)"
+        $formatInstructions += $nl + "- Parameter names start with '-' when calling cmdlets"
+        $formatInstructions += $nl + "- String values are properly quoted when containing spaces or special characters"
+        $formatInstructions += $nl + "- Boolean parameters use `$true/`$false or are specified as switches"
+        $formatInstructions += $nl + "- Paths use PowerShell-compatible formats"
+        $formatInstructions += $nl + "- Enum values match valid enumeration values for the parameter"
+        $formatInstructions += $nl + "- When a grave mark (`) appears in double quotes, escape it as double grave (``) "
+        $formatInstructions += $nl + "- When using string interpolation with variables followed by special characters (like colons), wrap the variable in `$() syntax: e.g., `"`$(`$name): `$value`" instead of `"`$name: `$value`""
     }
     
     # Build the enhanced prompt
