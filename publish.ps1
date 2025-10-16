@@ -40,10 +40,7 @@ param(
     [string]$BuildPath = "./build",
     
     [Parameter(Mandatory=$false)]
-    [string]$Repository = "PSGallery",
-    
-    [Parameter(Mandatory=$false)]
-    [switch]$WhatIf
+    [string]$Repository = "PSGallery"
 )
 
 Write-Host "PoshLLM Publish Script" -ForegroundColor Cyan
@@ -119,16 +116,21 @@ try {
 }
 
 # Confirm publication
-if (-not $WhatIf) {
-    Write-Host ""
-    Write-Host "WARNING: You are about to publish to $Repository" -ForegroundColor Yellow
-    Write-Host ""
-    $confirm = Read-Host "Are you sure you want to continue? (yes/no)"
-    
-    if ($confirm -ne "yes") {
-        Write-Host "Publish cancelled." -ForegroundColor Yellow
-        exit 0
+if ($PSCmdlet.ShouldProcess("$moduleName v$moduleVersion", "Publish to $Repository")) {
+    if (-not $WhatIfPreference) {
+        Write-Host ""
+        Write-Host "WARNING: You are about to publish to $Repository" -ForegroundColor Yellow
+        Write-Host ""
+        $confirm = Read-Host "Are you sure you want to continue? (yes/no)"
+        
+        if ($confirm -ne "yes") {
+            Write-Host "Publish cancelled." -ForegroundColor Yellow
+            exit 0
+        }
     }
+} else {
+    Write-Host "Publish cancelled by user." -ForegroundColor Yellow
+    exit 0
 }
 
 # Publish the module
@@ -144,10 +146,7 @@ try {
         Force = $true
     }
     
-    if ($WhatIf) {
-        Write-Host "WhatIf: Would publish module with the following parameters:" -ForegroundColor Yellow
-        $publishParams | ConvertTo-Json | Write-Host
-    } else {
+    if ($PSCmdlet.ShouldProcess("$moduleName v$moduleVersion", "Publish")) {
         Publish-Module @publishParams
         
         Write-Host ""
