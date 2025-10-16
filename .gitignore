@@ -2,9 +2,10 @@
 .vscode/
 
 # PowerShell module specific
-*.psd1
-*.psm1
-*.ps1
+# Note: .psd1, .psm1 for the module itself need to be tracked
+# Only ignore test and temporary ps1 files
+*.tmp.ps1
+*.test.ps1
 
 # Temporary files
 *.tmp
