@@ -51,7 +51,7 @@ Describe "Configuration Management" {
                 Remove-Item $configDir -Recurse -Force
             }
             
-            Set-PoshLLMConfiguration -Model "test-model"
+            Set-PoshLLMConfiguration
             Test-Path $configDir | Should -Be $true
         }
     }
@@ -119,7 +119,7 @@ Describe "Configuration Management" {
             # Capture Write-Host output by temporarily redirecting to a variable
             $oldInformationPreference = $InformationPreference
             $InformationPreference = 'Continue'
-            $output = Set-PoshLLMConfiguration -Model "test-model" -ApiKey "secret-key" 6>&1 | Out-String
+            $output = Set-PoshLLMConfiguration -ApiKey "secret-key" 6>&1 | Out-String
             $InformationPreference = $oldInformationPreference
             
             # Verify ApiKey is saved but masked in output
@@ -129,7 +129,7 @@ Describe "Configuration Management" {
         
         It "Should not display ApiKey line when not provided" {
             # Verify config doesn't have ApiKey when not provided
-            Set-PoshLLMConfiguration -Model "test-model"
+            Set-PoshLLMConfiguration
             $config = Get-PoshLLMConfig
             $config.ContainsKey('ApiKey') | Should -Be $false
         }

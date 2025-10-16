@@ -318,26 +318,48 @@ function Send-ToOllama {
     )
     
     try {
-        # Build the request body
-        $body = @{
-            prompt = $InputText
-            stream = $false
-        }
-        
-        # Add model if specified, otherwise Ollama will use its default
-        if ($Config.ContainsKey('Model') -and -not [string]::IsNullOrEmpty($Config.Model)) {
-            $body['model'] = $Config.Model
-        }
-        
-        $body = $body | ConvertTo-Json
-        
-        # Send request to Ollama
         # Use default URL if location is empty
         $baseUrl = if ($Config.ContainsKey('Location') -and -not [string]::IsNullOrEmpty($Config.Location)) {
             $Config.Location
         } else {
             'http://localhost:11434'
         }
+        
+        # Determine which model to use
+        $modelToUse = $null
+        if ($Config.ContainsKey('Model') -and -not [string]::IsNullOrEmpty($Config.Model)) {
+            $modelToUse = $Config.Model
+        } else {
+            # No model specified, fetch the most recently used model from Ollama
+            try {
+                $tagsUri = $baseUrl + '/api/tags'
+                $tagsResponse = Invoke-RestMethod -Uri $tagsUri -Method Get -ErrorAction Stop
+                
+                if ($tagsResponse.models -and $tagsResponse.models.Count -gt 0) {
+                    # Sort by modified_at (most recent first) and take the first one
+                    $mostRecentModel = $tagsResponse.models | Sort-Object { [DateTime]$_.modified_at } -Descending | Select-Object -First 1
+                    $modelToUse = $mostRecentModel.name
+                    Write-Verbose "No model specified, using most recently used model: $modelToUse"
+                } else {
+                    Write-Error "No model specified and no models found in Ollama. Please specify a model or install one in Ollama."
+                    return $null
+                }
+            } catch {
+                Write-Error "Failed to fetch available models from Ollama: $($_.Exception.Message)"
+                return $null
+            }
+        }
+        
+        # Build the request body
+        $body = @{
+            prompt = $InputText
+            stream = $false
+            model = $modelToUse
+        }
+        
+        $body = $body | ConvertTo-Json
+        
+        # Send request to Ollama
         $apiPath = '/api/generate'
         $uri = $baseUrl + $apiPath
         $contentType = 'application/json'

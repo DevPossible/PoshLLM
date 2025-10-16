@@ -18,17 +18,18 @@ BeforeAll {
     
     # Define system configurations for testing
     # Each system has its own configuration and availability check
+    # Note: Model is only specified when needed for specific tests
     $script:systemConfigs = @{
         'ClaudeCode' = @{
             LLMSystem = 'claudecode'
-            Model = 'sonnet'
+            TestModel = 'sonnet'  # Only used for model-specific tests
             Location = 'claude'
             AvailabilityCheck = { $null -ne (Get-Command claude -ErrorAction SilentlyContinue) }
             RequiresAuth = $true
         }
         'Ollama' = @{
             LLMSystem = 'ollama'
-            Model = 'qwen3:8b'
+            TestModel = 'qwen3:8b'  # Only used for model-specific tests
             Location = 'http://localhost:11434'
             AvailabilityCheck = { 
                 try {
@@ -42,7 +43,7 @@ BeforeAll {
         }
         'AzureOpenAI' = @{
             LLMSystem = 'azureopenai'
-            Model = 'gpt-4'
+            TestModel = 'gpt-4'  # Only used for model-specific tests
             Location = $env:AZURE_OPENAI_ENDPOINT
             AvailabilityCheck = { 
                 # Check if endpoint and API key are configured
@@ -96,22 +97,32 @@ Describe "LLM System Integration Tests" {
         Context "When configuring ClaudeCode" -Skip:(-not $script:systemConfigs.ClaudeCode.Available) {
             It "Should accept claudecode as LLMSystem" {
                 $systemConfig = $script:systemConfigs.ClaudeCode
-                { Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location } | Should -Not -Throw
+                { Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location } | Should -Not -Throw
             }
             
-            It "Should save ClaudeCode configuration" {
+            It "Should save ClaudeCode configuration without model (uses system default)" {
                 $systemConfig = $script:systemConfigs.ClaudeCode
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location
                 
                 $config = Get-PoshLLMConfig
                 $config.LLMSystem | Should -Be $systemConfig.LLMSystem
-                $config.Model | Should -Be $systemConfig.Model
+                $config.ContainsKey('Model') | Should -Be $false
+                $config.Location | Should -Be $systemConfig.Location
+            }
+            
+            It "Should save ClaudeCode configuration with specific model when provided" {
+                $systemConfig = $script:systemConfigs.ClaudeCode
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.TestModel -Location $systemConfig.Location
+                
+                $config = Get-PoshLLMConfig
+                $config.LLMSystem | Should -Be $systemConfig.LLMSystem
+                $config.Model | Should -Be $systemConfig.TestModel
                 $config.Location | Should -Be $systemConfig.Location
             }
             
             It "Should accept API key with ClaudeCode" {
                 $systemConfig = $script:systemConfigs.ClaudeCode
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location -ApiKey "test-key"
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location -ApiKey "test-key"
                 
                 $config = Get-PoshLLMConfig
                 $config.ApiKey | Should -Be "test-key"
@@ -121,7 +132,7 @@ Describe "LLM System Integration Tests" {
         Context "When using ClaudeCode with GetPrompt" -Skip:(-not $script:systemConfigs.ClaudeCode.Available) {
             BeforeAll {
                 $systemConfig = $script:systemConfigs.ClaudeCode
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location
             }
             
             It "Should return enhanced prompt without calling ClaudeCode" {
@@ -145,7 +156,7 @@ Describe "LLM System Integration Tests" {
         Context "When sending actual requests to ClaudeCode" -Skip:(-not $script:systemConfigs.ClaudeCode.Available) {
             BeforeAll {
                 $systemConfig = $script:systemConfigs.ClaudeCode
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location
             }
             
             It "Should send request and receive response" {
@@ -171,7 +182,8 @@ Describe "LLM System Integration Tests" {
             It "Should handle model parameter override" {
                 $systemConfig = $script:systemConfigs.ClaudeCode
                 try {
-                    $response = Invoke-LLM "test" -Model $systemConfig.Model -ResponseType Text -Raw
+                    # This test specifically tests the Model parameter
+                    $response = Invoke-LLM "test" -Config @{Model = $systemConfig.TestModel} -ResponseType Text -Raw
                     $response | Should -Not -BeNullOrEmpty
                 } catch {
                     Set-ItResult -Skipped -Because "ClaudeCode may not be authenticated or available"
@@ -188,7 +200,7 @@ Describe "LLM System Integration Tests" {
             
             It "Should handle invalid location gracefully" {
                 $systemConfig = $script:systemConfigs.ClaudeCode
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location "nonexistent-location"
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location "nonexistent-location"
                 try {
                     Invoke-LLM "test" -Raw
                 } catch {
@@ -212,22 +224,32 @@ Describe "LLM System Integration Tests" {
         Context "When configuring Ollama" -Skip:(-not $script:systemConfigs.Ollama.Available) {
             It "Should accept ollama as LLMSystem" {
                 $systemConfig = $script:systemConfigs.Ollama
-                { Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location } | Should -Not -Throw
+                { Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location } | Should -Not -Throw
             }
             
-            It "Should save Ollama configuration" {
+            It "Should save Ollama configuration without model (uses system default)" {
                 $systemConfig = $script:systemConfigs.Ollama
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location
                 
                 $config = Get-PoshLLMConfig
                 $config.LLMSystem | Should -Be $systemConfig.LLMSystem
-                $config.Model | Should -Be $systemConfig.Model
+                $config.ContainsKey('Model') | Should -Be $false
+                $config.Location | Should -Be $systemConfig.Location
+            }
+            
+            It "Should save Ollama configuration with specific model when provided" {
+                $systemConfig = $script:systemConfigs.Ollama
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.TestModel -Location $systemConfig.Location
+                
+                $config = Get-PoshLLMConfig
+                $config.LLMSystem | Should -Be $systemConfig.LLMSystem
+                $config.Model | Should -Be $systemConfig.TestModel
                 $config.Location | Should -Be $systemConfig.Location
             }
             
             It "Should accept API key with Ollama" {
                 $systemConfig = $script:systemConfigs.Ollama
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location -ApiKey "test-key"
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location -ApiKey "test-key"
                 
                 $config = Get-PoshLLMConfig
                 $config.ApiKey | Should -Be "test-key"
@@ -237,7 +259,7 @@ Describe "LLM System Integration Tests" {
         Context "When using Ollama with GetPrompt" -Skip:(-not $script:systemConfigs.Ollama.Available) {
             BeforeAll {
                 $systemConfig = $script:systemConfigs.Ollama
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location
             }
             
             It "Should return enhanced prompt without calling Ollama" {
@@ -261,7 +283,7 @@ Describe "LLM System Integration Tests" {
         Context "When sending actual requests to Ollama" -Skip:(-not $script:systemConfigs.Ollama.Available) {
             BeforeAll {
                 $systemConfig = $script:systemConfigs.Ollama
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location $systemConfig.Location
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location $systemConfig.Location
             }
             
             It "Should send request and receive response" {
@@ -287,7 +309,8 @@ Describe "LLM System Integration Tests" {
             It "Should handle model parameter override" {
                 $systemConfig = $script:systemConfigs.Ollama
                 try {
-                    $response = Invoke-LLM "test" -Model $systemConfig.Model -ResponseType Text -Raw
+                    # This test specifically tests the Model parameter
+                    $response = Invoke-LLM "test" -Config @{Model = $systemConfig.TestModel} -ResponseType Text -Raw
                     $response | Should -Not -BeNullOrEmpty
                 } catch {
                     Set-ItResult -Skipped -Because "Ollama may not have the required model available"
@@ -304,7 +327,7 @@ Describe "LLM System Integration Tests" {
             
             It "Should handle invalid location gracefully" {
                 $systemConfig = $script:systemConfigs.Ollama
-                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Model $systemConfig.Model -Location "http://localhost:99999"
+                Set-PoshLLMConfiguration -LLMSystem $systemConfig.LLMSystem -Location "http://localhost:99999"
                 try {
                     Invoke-LLM "test" -Raw
                 } catch {
@@ -327,7 +350,6 @@ Describe "Cross-System Compatibility Tests" {
                 if ($systemConfig.Available) {
                     $params = @{
                         LLMSystem = $systemConfig.LLMSystem
-                        Model = $systemConfig.Model
                         Location = $systemConfig.Location
                     }
                     if ($systemConfig.ApiKey) {
