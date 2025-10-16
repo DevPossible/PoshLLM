@@ -15,11 +15,17 @@
 .PARAMETER Repository
     Target repository name (default: PSGallery)
 
+.PARAMETER Force
+    Skip all confirmation prompts and publish without user interaction
+
 .PARAMETER WhatIf
     Show what would be published without actually publishing
 
 .EXAMPLE
     .\publish.ps1 -ApiKey "your-api-key-here"
+    
+.EXAMPLE
+    .\publish.ps1 -ApiKey "your-api-key-here" -Force
     
 .EXAMPLE
     .\publish.ps1 -ApiKey "your-api-key-here" -WhatIf
@@ -40,7 +46,10 @@ param(
     [string]$BuildPath = "./build",
     
     [Parameter(Mandatory=$false)]
-    [string]$Repository = "PSGallery"
+    [string]$Repository = "PSGallery",
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Force
 )
 
 Write-Host "PoshLLM Publish Script" -ForegroundColor Cyan
@@ -104,10 +113,14 @@ try {
     $existingModule = Find-Module -Name $moduleName -Repository $Repository -ErrorAction SilentlyContinue
     if ($existingModule -and $existingModule.Version -eq $moduleVersion) {
         Write-Warning "Version $moduleVersion already exists in $Repository!"
-        $continue = Read-Host "Do you want to continue anyway? (y/N)"
-        if ($continue -ne 'y') {
-            Write-Host "Publish cancelled." -ForegroundColor Yellow
-            exit 0
+        if (-not $Force) {
+            $continue = Read-Host "Do you want to continue anyway? (y/N)"
+            if ($continue -ne 'y') {
+                Write-Host "Publish cancelled." -ForegroundColor Yellow
+                exit 0
+            }
+        } else {
+            Write-Host "Force parameter specified, continuing..." -ForegroundColor Yellow
         }
     }
 } catch {
@@ -117,7 +130,7 @@ try {
 
 # Confirm publication
 if ($PSCmdlet.ShouldProcess("$moduleName v$moduleVersion", "Publish to $Repository")) {
-    if (-not $WhatIfPreference) {
+    if (-not $WhatIfPreference -and -not $Force) {
         Write-Host ""
         Write-Host "WARNING: You are about to publish to $Repository" -ForegroundColor Yellow
         Write-Host ""
@@ -127,6 +140,10 @@ if ($PSCmdlet.ShouldProcess("$moduleName v$moduleVersion", "Publish to $Reposito
             Write-Host "Publish cancelled." -ForegroundColor Yellow
             exit 0
         }
+    } elseif ($Force) {
+        Write-Host ""
+        Write-Host "Force parameter specified, skipping confirmation..." -ForegroundColor Yellow
+        Write-Host ""
     }
 } else {
     Write-Host "Publish cancelled by user." -ForegroundColor Yellow

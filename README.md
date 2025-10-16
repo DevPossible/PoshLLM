@@ -219,11 +219,15 @@ if (Get-Module -ListAvailable -Name PoshLLM) {
 }
 ```
 
-## 🛠️ Setting Up Ollama
+## 🛠️ Setting Up LLM Systems
 
-PoshLLM works with [Ollama](https://ollama.ai/), a local LLM runtime.
+PoshLLM supports two LLM systems: **Ollama** (local) and **ClaudeCode** (Anthropic's Claude via CLI).
 
-### Install Ollama
+### Option 1: Ollama (Local LLM)
+
+[Ollama](https://ollama.ai/) runs LLMs locally on your machine for complete privacy and offline use.
+
+#### Install Ollama
 
 1. Download from [ollama.ai](https://ollama.ai/)
 2. Install following platform-specific instructions
@@ -238,12 +242,67 @@ PoshLLM works with [Ollama](https://ollama.ai/), a local LLM runtime.
    ollama list
    ```
 
-### Recommended Models for PowerShell
+#### Configure PoshLLM for Ollama
+
+```powershell
+# Use defaults (Ollama on localhost:11434)
+Set-PoshLLMConfiguration
+
+# Or specify a custom model
+Set-PoshLLMConfiguration -LLMSystem "ollama" -Model "llama3:latest"
+
+# Or use a remote Ollama instance
+Set-PoshLLMConfiguration -LLMSystem "ollama" -Model "mistral:latest" -Location "http://remote-server:11434"
+```
+
+#### Recommended Ollama Models for PowerShell
 
 - **codellama** - Best for code generation
 - **llama3** - Great all-around model
 - **qwen3** - Fast and efficient
 - **mistral** - Good balance of speed and capability
+
+### Option 2: ClaudeCode CLI (Cloud-based)
+
+[ClaudeCode CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code) connects to Anthropic's Claude models via their API.
+
+#### Install ClaudeCode CLI
+
+1. Install via npm:
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   ```
+
+2. Get your API key from [Anthropic Console](https://console.anthropic.com/settings/keys)
+
+3. Verify installation:
+   ```bash
+   claude --version
+   ```
+
+#### Configure PoshLLM for ClaudeCode
+
+```powershell
+# Configure with API key
+Set-PoshLLMConfiguration -LLMSystem "claudecode" `
+                         -Model "claude-3.5-sonnet" `
+                         -Location "claude" `
+                         -ApiKey "your-api-key-here"
+```
+
+#### Available Claude Models
+
+- **claude-3.5-sonnet** - Most capable model, best for complex tasks
+- **claude-3-opus** - Powerful model for demanding tasks
+- **claude-3-sonnet** - Balanced performance and speed
+- **claude-3-haiku** - Fastest model for simple tasks
+
+#### ClaudeCode Notes
+
+- Requires active internet connection
+- API usage is billed by Anthropic
+- API key is stored securely in your user profile
+- Data is processed in Anthropic's cloud
 
 ## ❓ FAQ
 
@@ -251,7 +310,9 @@ PoshLLM works with [Ollama](https://ollama.ai/), a local LLM runtime.
 A: Yes! PoshLLM now supports both Ollama and ClaudeCode CLI. Support for additional LLM systems (OpenAI, Azure OpenAI, etc.) may be added in future versions.
 
 ### Q: Is my data sent to the cloud?
-A: When using Ollama, PoshLLM connects to your Ollama instance. All processing happens on your instance.
+A: It depends on which LLM system you use:
+- **Ollama**: All processing happens locally on your machine. No data is sent to the cloud.
+- **ClaudeCode**: Your prompts are sent to Anthropic's API for processing. Data is processed in Anthropic's cloud infrastructure.
 
 ### Q: Can I use this in production scripts?
 A: While PoshLLM is great for development and learning, be cautious with executing generated code in production without review. That's a nice way of saying absolutely not :)

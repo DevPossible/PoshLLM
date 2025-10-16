@@ -48,7 +48,7 @@ jobs:
         PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
       run: |
         Write-Host "Publishing module to PowerShell Gallery..." -ForegroundColor Green
-        & ".\publish.ps1" -ApiKey $env:PSGALLERY_API_KEY -BuildPath ".\build"
+        & ".\publish.ps1" -ApiKey $env:PSGALLERY_API_KEY -BuildPath ".\build" -Force
         if ($LASTEXITCODE -ne 0) {
           Write-Error "Publish failed."
           exit 1
