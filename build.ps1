@@ -119,3 +119,5 @@ Write-Host ""
 Write-Host "Build completed successfully! ✓" -ForegroundColor Green
 Write-Host ""
 Write-Host "To publish, run: .\publish.ps1 -ApiKey YOUR_API_KEY" -ForegroundColor Yellow
+
+exit 0
