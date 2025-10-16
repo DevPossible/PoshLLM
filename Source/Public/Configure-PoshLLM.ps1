@@ -8,24 +8,31 @@ function Set-PoshLLMConfiguration {
         The name of the LLM system (e.g., ollama)
     .PARAMETER Model
         The model to use for requests
-    .PARAMETER URL
-        The URL for the LLM system
+    .PARAMETER Location
+        The location can be a URL or an exe name with or without full path
+    .PARAMETER ApiKey
+        The API key for the LLM system (optional, used for systems that require authentication)
     .PARAMETER ContextSize
         The context size for the LLM (default is 4096, maximum is 65536 bytes / 64KB)
     .EXAMPLE
-        Set-PoshLLMConfiguration -LLMSystem "ollama" -Model "llama2" -URL "http://localhost:11434"
+        Set-PoshLLMConfiguration -LLMSystem "ollama" -Model "llama2" -Location "http://localhost:11434"
+    .EXAMPLE
+        Set-PoshLLMConfiguration -LLMSystem "claudecode" -Model "claude-3.5-sonnet" -Location "claudecode" -ApiKey "your-api-key"
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)]
-        [ValidateSet("ollama")]
+        [ValidateSet("ollama", "claudecode")]
         [string]$LLMSystem = "ollama",
         
         [Parameter(Mandatory=$false)]
-        [string]$Model = "qwen3:8b",
+        [string]$Model,
         
         [Parameter(Mandatory=$false)]
-        [string]$URL = "http://localhost:11434",
+        [string]$Location,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$ApiKey,
         
         [Parameter(Mandatory=$false)]
         [ValidateRange(1, 65536)]
@@ -38,12 +45,32 @@ function Set-PoshLLMConfiguration {
         return
     }
     
-    # Create configuration object
+    # Create configuration object with only essential fields
     $config = @{
         LLMSystem = $LLMSystem
-        Model = $Model
-        URL = $URL
         ContextSize = $ContextSize
+    }
+    
+    # Add Location - set default based on LLM system if not provided
+    if ($PSBoundParameters.ContainsKey('Location')) {
+        $config.Location = $Location
+    } else {
+        # Set default location based on LLM system
+        if ($LLMSystem -eq "claudecode") {
+            $config.Location = "claude"
+        } else {
+            $config.Location = "http://localhost:11434"
+        }
+    }
+    
+    # Add Model only if explicitly provided (if not provided, system will use its default)
+    if ($PSBoundParameters.ContainsKey('Model') -and -not [string]::IsNullOrEmpty($Model)) {
+        $config.Model = $Model
+    }
+    
+    # Add ApiKey only if explicitly provided
+    if ($PSBoundParameters.ContainsKey('ApiKey') -and -not [string]::IsNullOrEmpty($ApiKey)) {
+        $config.ApiKey = $ApiKey
     }
     
     # Save configuration to a file
@@ -58,8 +85,15 @@ function Set-PoshLLMConfiguration {
     
     Write-Host "PoshLLM configured successfully!" -ForegroundColor Green
     Write-Host "LLM System: $LLMSystem" -ForegroundColor Yellow
-    Write-Host "Model: $Model" -ForegroundColor Yellow
-    Write-Host "URL: $URL" -ForegroundColor Yellow
+    if ($PSBoundParameters.ContainsKey('Model') -and -not [string]::IsNullOrEmpty($Model)) {
+        Write-Host "Model: $Model" -ForegroundColor Yellow
+    } else {
+        Write-Host "Model: (using system default)" -ForegroundColor Yellow
+    }
+    Write-Host "Location: $($config.Location)" -ForegroundColor Yellow
+    if ($PSBoundParameters.ContainsKey('ApiKey')) {
+        Write-Host "API Key: ***configured***" -ForegroundColor Yellow
+    }
     Write-Host "Context Size: $ContextSize" -ForegroundColor Yellow
 }
 

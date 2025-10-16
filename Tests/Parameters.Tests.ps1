@@ -13,7 +13,7 @@ BeforeAll {
     }
     
     # Create a test configuration
-    Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+    Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
 }
 
 AfterAll {
@@ -129,29 +129,29 @@ Describe "Invoke-LLM Parameter Tests" {
         }
         
         It "Should not call Ollama when -GetPrompt is used" {
-            # This should not fail even with invalid URL since it doesn't call Ollama
-            { Invoke-LLM "test" -URL "http://invalid:99999" -GetPrompt } | Should -Not -Throw
+            # This should not fail even with invalid Location since it doesn't call Ollama
+            { Invoke-LLM "test" -Config @{Location = "http://invalid:99999"} -GetPrompt } | Should -Not -Throw
         }
     }
     
-    Context "When using parameter overrides" {
+    Context "When using Config parameter overrides" {
         It "Should override Model parameter" {
-            $prompt = Invoke-LLM "test" -Model "override-model" -GetPrompt
+            $prompt = Invoke-LLM "test" -Config @{Model = "override-model"} -GetPrompt
             $prompt | Should -Not -BeNullOrEmpty
         }
         
-        It "Should override URL parameter" {
-            $prompt = Invoke-LLM "test" -URL "http://override:1234" -GetPrompt
+        It "Should override Location parameter" {
+            $prompt = Invoke-LLM "test" -Config @{Location = "http://override:1234"} -GetPrompt
             $prompt | Should -Not -BeNullOrEmpty
         }
         
         It "Should override ContextSize parameter" {
-            $prompt = Invoke-LLM "test" -ContextSize 8192 -GetPrompt
+            $prompt = Invoke-LLM "test" -Config @{ContextSize = 8192} -GetPrompt
             $prompt | Should -Not -BeNullOrEmpty
         }
         
         It "Should override LLMSystem parameter" {
-            $prompt = Invoke-LLM "test" -LLMSystem "ollama" -GetPrompt
+            $prompt = Invoke-LLM "test" -Config @{LLMSystem = "ollama"} -GetPrompt
             $prompt | Should -Not -BeNullOrEmpty
         }
     }
@@ -172,8 +172,13 @@ Describe "Invoke-LLM Parameter Tests" {
             $prompt | Should -Match "PowerShell script"
         }
         
-        It "Should work with multiple overrides simultaneously" {
-            $prompt = Invoke-LLM "test" -Model "override" -URL "http://test:1234" -ContextSize 16384 -GetPrompt
+        It "Should work with multiple Config overrides simultaneously" {
+            $config = @{
+                Model = "override"
+                Location = "http://test:1234"
+                ContextSize = 16384
+            }
+            $prompt = Invoke-LLM "test" -Config $config -GetPrompt
             $prompt | Should -Not -BeNullOrEmpty
         }
         

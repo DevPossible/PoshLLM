@@ -8,14 +8,13 @@ function Invoke-LLM {
         put it in the clipboard, or exit.
     .PARAMETER Prompt
         The input to send to the LLM
-    .PARAMETER LLMSystem
-        Override the configured LLM system
-    .PARAMETER Model
-        Override the configured model
-    .PARAMETER URL
-        Override the configured URL
-    .PARAMETER ContextSize
-        Override the configured context size (maximum 65536 bytes / 64KB)
+    .PARAMETER Config
+        Configuration hashtable containing any of the following keys:
+        - LLMSystem: The LLM system to use (e.g., 'ollama', 'claudecode')
+        - Model: The model to use
+        - Location: The location (URL or exe path)
+        - ContextSize: The context size (maximum 65536 bytes / 64KB)
+        - ApiKey: The API key (if required)
     .PARAMETER ResponseType
         Override the response type (Text, Data, Script)
     .PARAMETER DataFormat
@@ -29,7 +28,7 @@ function Invoke-LLM {
     .EXAMPLE
         Invoke-LLM "What is PowerShell?"
     .EXAMPLE
-        Invoke-LLM -Prompt "Write a function to list files" -Model "llama3:latest"
+        Invoke-LLM -Prompt "Write a function to list files" -Config @{Model = "llama3:latest"}
     .EXAMPLE
         ai "What is PowerShell?"  # Using the 'ai' alias
     .EXAMPLE
@@ -51,17 +50,7 @@ function Invoke-LLM {
         [string]$Prompt,
         
         [Parameter(Mandatory=$false)]
-        [string]$LLMSystem,
-        
-        [Parameter(Mandatory=$false)]
-        [string]$Model,
-        
-        [Parameter(Mandatory=$false)]
-        [string]$URL,
-        
-        [Parameter(Mandatory=$false)]
-        [ValidateRange(1, 65536)]
-        [int]$ContextSize,
+        [hashtable]$Config,
         
         [Parameter(Mandatory=$false)]
         [ValidateSet('Text', 'Data', 'Script')]
@@ -84,36 +73,35 @@ function Invoke-LLM {
     # Get the current configuration
     $configObj = Get-PoshLLMConfig
     
-    if (-not $configObj) {
-        Write-Error "No configuration found. Please run Configure-PoshLLM first."
+    if (-not $configObj -and -not $PSBoundParameters.ContainsKey('Config')) {
+        Write-Error "No configuration found. Please run Configure-PoshLLM first or provide a Config parameter."
         return
     }
     
-    # Create a new hashtable from config
-    $config = @{
-        LLMSystem = $configObj.LLMSystem
-        Model = $configObj.Model
-        URL = $configObj.URL
-        ContextSize = $configObj.ContextSize
+    # Start with saved config (if it exists)
+    $finalConfig = @{}
+    if ($configObj) {
+        foreach ($key in $configObj.Keys) {
+            $finalConfig[$key] = $configObj[$key]
+        }
     }
     
-    # Override config values if parameters are provided
-    if ($PSBoundParameters.ContainsKey('LLMSystem')) {
-        $config.LLMSystem = $LLMSystem
-    }
-    if ($PSBoundParameters.ContainsKey('Model')) {
-        $config.Model = $Model
-    }
-    if ($PSBoundParameters.ContainsKey('URL')) {
-        $config.URL = $URL
-    }
-    if ($PSBoundParameters.ContainsKey('ContextSize')) {
-        # Validate context size does not exceed 64KB (65536 bytes)
-        if ($ContextSize -gt 65536) {
-            Write-Error "Context size cannot exceed 64KB (65536 bytes). Provided: $ContextSize"
-            return
+    # Override with provided Config parameter if present
+    if ($PSBoundParameters.ContainsKey('Config')) {
+        foreach ($key in $Config.Keys) {
+            # Validate ContextSize if provided
+            if ($key -eq 'ContextSize' -and $Config[$key] -gt 65536) {
+                Write-Error "Context size cannot exceed 64KB (65536 bytes). Provided: $($Config[$key])"
+                return
+            }
+            $finalConfig[$key] = $Config[$key]
         }
-        $config.ContextSize = $ContextSize
+    }
+    
+    # Validate that we have the minimum required configuration
+    if (-not $finalConfig.ContainsKey('LLMSystem') -or [string]::IsNullOrEmpty($finalConfig.LLMSystem)) {
+        Write-Error "LLMSystem is required in configuration."
+        return
     }
     
     # Gather system information
@@ -158,8 +146,7 @@ function Invoke-LLM {
             }
             'Data' {
                 if ($PSBoundParameters.ContainsKey('DataFormat')) {
-                    $df = $DataFormat
-                    $formatInstructions = "Respond with the data in $df format. Provide ONLY the data without any additional explanation or wrapping."
+                    $formatInstructions = "Respond with the data in $DataFormat format. Provide ONLY the data without any additional explanation or wrapping."
                 } else {
                     $formatInstructions = 'Respond with the data in JSON format. Provide ONLY the JSON data without any additional explanation or wrapping.'
                 }
@@ -201,7 +188,7 @@ function Invoke-LLM {
     }
     
     # Send enhanced input to the configured LLM system
-    $response = Send-ToLLM -InputText $enhancedPrompt -Config $config
+    $response = Send-ToLLM -InputText $enhancedPrompt -Config $finalConfig
     
     if ($response) {
         # If Raw switch is specified, return just the response without formatting
@@ -209,7 +196,7 @@ function Invoke-LLM {
             return $response
         }
         
-        # Determine if we should check for code blocks based on ResponseType
+    # Determine if we should check for code blocks based on ResponseType
         $shouldCheckForCode = $true
         if ($PSBoundParameters.ContainsKey('ResponseType')) {
             # If ResponseType is explicitly set to Text or Data, don't check for code
@@ -298,6 +285,9 @@ function Send-ToLLM {
         "ollama" {
             return Send-ToOllama -InputText $InputText -Config $Config
         }
+        "claudecode" {
+            return Send-ToClaudeCode -InputText $InputText -Config $Config
+        }
         default {
             Write-Error "Unsupported LLM system: $($Config.LLMSystem)"
             return $null
@@ -330,22 +320,105 @@ function Send-ToOllama {
     try {
         # Build the request body
         $body = @{
-            model = $Config.Model
             prompt = $InputText
             stream = $false
-        } | ConvertTo-Json
+        }
+        
+        # Add model if specified, otherwise Ollama will use its default
+        if ($Config.ContainsKey('Model') -and -not [string]::IsNullOrEmpty($Config.Model)) {
+            $body['model'] = $Config.Model
+        }
+        
+        $body = $body | ConvertTo-Json
         
         # Send request to Ollama
-        $baseUrl = $Config.URL
+        # Use default URL if location is empty
+        $baseUrl = if ($Config.ContainsKey('Location') -and -not [string]::IsNullOrEmpty($Config.Location)) {
+            $Config.Location
+        } else {
+            'http://localhost:11434'
+        }
         $apiPath = '/api/generate'
         $uri = $baseUrl + $apiPath
         $contentType = 'application/json'
-        $response = Invoke-RestMethod -Uri $uri -Method Post -Body $body -ContentType $contentType
+        
+        # Prepare headers
+        $headers = @{
+            'Content-Type' = $contentType
+        }
+        
+        # Add bearer token if API key is present
+        if ($Config.ContainsKey('ApiKey') -and -not [string]::IsNullOrEmpty($Config.ApiKey)) {
+            $headers['Authorization'] = "Bearer $($Config.ApiKey)"
+        }
+        
+        # Make the request
+        $response = Invoke-RestMethod -Uri $uri -Method Post -Body $body -Headers $headers
         
         return $response.response
     }
     catch {
         Write-Error 'Failed to connect to Ollama. Please check your connection and configuration.'
+        return $null
+    }
+}
+
+function Send-ToClaudeCode {
+    <#
+    .SYNOPSIS
+        Sends input to ClaudeCode CLI tool
+    .DESCRIPTION
+        Connects to ClaudeCode CLI (claude.exe) and sends the input for processing via stdin
+    .PARAMETER InputText
+        The input to send to ClaudeCode
+    .PARAMETER Config
+        Configuration object containing ClaudeCode connection details
+    .EXAMPLE
+        Send-ToClaudeCode -InputText "Hello" -Config $config
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$InputText,
+        
+        [Parameter(Mandatory=$true)]
+        [hashtable]$Config
+    )
+    
+    try {
+        # Use the configured location (exe path) or default to "claude"
+        $claudeExe = if ($Config.ContainsKey('Location') -and -not [string]::IsNullOrEmpty($Config.Location)) {
+            $Config.Location
+        } else {
+            "claude"
+        }
+        
+        # Build arguments array for non-interactive mode
+        $arguments = @(
+            '--print'
+            '--output-format'
+            'text'
+        )
+        
+        # Add model if specified
+        if ($Config.ContainsKey('Model') -and -not [string]::IsNullOrEmpty($Config.Model)) {
+            $arguments += '--model'
+            $arguments += $Config.Model
+        }
+        
+        # Use pipeline to send InputText to claude via stdin
+        # This handles multi-line prompts and special characters better
+        $response = $InputText | & $claudeExe @arguments 2>&1
+        
+        # Convert response to string if it's an array
+        if ($response -is [array]) {
+            $response = $response -join "`n"
+        }
+        
+        return $response
+    }
+    catch {
+        Write-Error "Failed to connect to ClaudeCode CLI. Please check that 'claude' is installed and in your PATH. Error: $($_.Exception.Message)"
         return $null
     }
 }

@@ -29,19 +29,20 @@ AfterAll {
 Describe "Configuration Management" {
     Context "When saving valid configuration" {
         It "Should save configuration successfully" {
-            Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
             $config = Get-PoshLLMConfig
             $config.Model | Should -Be "test-model"
-            $config.URL | Should -Be "http://localhost:11434"
+            $config.Location | Should -Be "http://localhost:11434"
         }
         
         It "Should use default values for optional parameters" {
             Set-PoshLLMConfiguration
             $config = Get-PoshLLMConfig
             $config.LLMSystem | Should -Be "ollama"
-            $config.Model | Should -Be "qwen3:8b"
-            $config.URL | Should -Be "http://localhost:11434"
+            $config.Location | Should -Be "http://localhost:11434"
             $config.ContextSize | Should -Be 4096
+            # Model is optional and should not be present if not specified
+            $config.ContainsKey('Model') | Should -Be $false
         }
         
         It "Should create config directory if it doesn't exist" {
@@ -57,14 +58,14 @@ Describe "Configuration Management" {
     
     Context "When reading configuration" {
         BeforeEach {
-            Set-PoshLLMConfiguration -Model "test-model" -URL "http://test:1234" -ContextSize 8192
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://test:1234" -ContextSize 8192
         }
         
         It "Should retrieve saved configuration" {
             $config = Get-PoshLLMConfig
             $config | Should -Not -BeNullOrEmpty
             $config.Model | Should -Be "test-model"
-            $config.URL | Should -Be "http://test:1234"
+            $config.Location | Should -Be "http://test:1234"
             $config.ContextSize | Should -Be 8192
         }
         
@@ -98,6 +99,39 @@ Describe "Configuration Management" {
         
         It "Should reject context size exactly at 65537 (just over limit)" {
             { Set-PoshLLMConfiguration -ContextSize 65537 } | Should -Throw
+        }
+    }
+    
+    Context "When using ApiKey parameter" {
+        It "Should save ApiKey when provided" {
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434" -ApiKey "test-api-key"
+            $config = Get-PoshLLMConfig
+            $config.ApiKey | Should -Be "test-api-key"
+        }
+        
+        It "Should not include ApiKey in config when not provided" {
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
+            $config = Get-PoshLLMConfig
+            $config.ContainsKey('ApiKey') | Should -Be $false
+        }
+        
+        It "Should display masked ApiKey in output when configured" {
+            # Capture Write-Host output by temporarily redirecting to a variable
+            $oldInformationPreference = $InformationPreference
+            $InformationPreference = 'Continue'
+            $output = Set-PoshLLMConfiguration -Model "test-model" -ApiKey "secret-key" 6>&1 | Out-String
+            $InformationPreference = $oldInformationPreference
+            
+            # Verify ApiKey is saved but masked in output
+            $config = Get-PoshLLMConfig
+            $config.ApiKey | Should -Be "secret-key"
+        }
+        
+        It "Should not display ApiKey line when not provided" {
+            # Verify config doesn't have ApiKey when not provided
+            Set-PoshLLMConfiguration -Model "test-model"
+            $config = Get-PoshLLMConfig
+            $config.ContainsKey('ApiKey') | Should -Be $false
         }
     }
     

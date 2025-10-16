@@ -13,7 +13,7 @@ BeforeAll {
     }
     
     # Create a test configuration
-    Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+    Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
 }
 
 AfterAll {
@@ -52,59 +52,59 @@ Describe "Error Handling" {
     Context "When Ollama is unreachable" {
         BeforeAll {
             # Ensure config exists for these tests
-            Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
         }
         
-        It "Should error gracefully when URL is unreachable" {
+        It "Should error gracefully when Location is unreachable" {
             # Use an invalid port that won't be accessible
-            { Invoke-LLM "test" -URL "http://localhost:99999" -ErrorAction Stop } | Should -Throw
+            { Invoke-LLM "test" -Config @{Location = "http://localhost:99999"} -ErrorAction Stop } | Should -Throw
         }
         
         It "Should provide helpful error message for connection failures" {
-            { Invoke-LLM "test" -URL "http://localhost:99999" -ErrorAction Stop } | Should -Throw "*Failed to connect to Ollama*"
+            { Invoke-LLM "test" -Config @{Location = "http://localhost:99999"} -ErrorAction Stop } | Should -Throw "*Failed to connect to Ollama*"
         }
     }
     
     Context "When model doesn't exist" {
         BeforeAll {
             # Ensure config exists for these tests
-            Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
         }
         
         It "Should handle non-existent model gracefully" {
             # This test will only work if Ollama is running
             # We use -GetPrompt to avoid actually calling Ollama in this test
-            { Invoke-LLM "test" -Model "this-model-definitely-does-not-exist-12345" -GetPrompt } | Should -Not -Throw
+            { Invoke-LLM "test" -Config @{Model = "this-model-definitely-does-not-exist-12345"} -GetPrompt } | Should -Not -Throw
         }
     }
     
     Context "When context size is invalid" {
         BeforeAll {
             # Ensure config exists for these tests
-            Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
         }
         
         It "Should reject context size override exceeding 64KB" {
-            { Invoke-LLM "test" -ContextSize 70000 -ErrorAction Stop } | Should -Throw
+            { Invoke-LLM "test" -Config @{ContextSize = 70000} -ErrorAction Stop } | Should -Throw
         }
         
         It "Should reject negative context size override" {
-            { Invoke-LLM "test" -ContextSize -1 -ErrorAction Stop } | Should -Throw
+            { Invoke-LLM "test" -Config @{ContextSize = -1} -ErrorAction Stop } | Should -Throw
         }
         
         It "Should reject zero context size override" {
-            { Invoke-LLM "test" -ContextSize 0 -ErrorAction Stop } | Should -Throw
+            { Invoke-LLM "test" -Config @{ContextSize = 0} -ErrorAction Stop } | Should -Throw
         }
         
         It "Should accept valid context size override" {
-            { Invoke-LLM "test" -ContextSize 8192 -GetPrompt } | Should -Not -Throw
+            { Invoke-LLM "test" -Config @{ContextSize = 8192} -GetPrompt } | Should -Not -Throw
         }
     }
     
     Context "When prompt is too large" {
         BeforeAll {
             # Ensure config exists for these tests
-            Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+            Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
         }
         
         It "Should reject enhanced prompt exceeding 64KB" {

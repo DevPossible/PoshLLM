@@ -13,7 +13,7 @@ BeforeAll {
     }
     
     # Create a test configuration
-    Set-PoshLLMConfiguration -Model "test-model" -URL "http://localhost:11434"
+    Set-PoshLLMConfiguration -Model "test-model" -Location "http://localhost:11434"
 }
 
 AfterAll {
