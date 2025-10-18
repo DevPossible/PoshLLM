@@ -145,9 +145,39 @@ When PoshLLM detects code in the response, you'll be prompted with options:
 llm "Write a function to list all running services"
 
 # You'll see highlighted code and options to:
+# [C] Copy to clipboard (default) - Copy the code to your clipboard
 # [E] Execute - Run the code immediately
-# [C] Copy - Copy to clipboard
+# [F] Fix - Ask the LLM to review and fix any issues with the code
+# [A] Alternate - Request a different solution from the LLM
+# [R] Redirect - Ask the LLM to modify the code or answer questions about it
 # [X] Exit - Just display without action
+```
+
+#### Interactive Code Options
+
+**Fix Option**: If the generated code has issues or you want the LLM to review it:
+```powershell
+# After seeing the code, select [F]
+# The LLM will analyze the code and provide a corrected version
+```
+
+**Alternate Option**: Get different approaches to the same problem:
+```powershell
+# After seeing the code, select [A]
+# The LLM will provide a different solution
+# You can select [A] multiple times to see various approaches
+# Each previous solution is tracked to avoid duplicates
+```
+
+**Redirect Option**: Customize or query the LLM about the generated code:
+```powershell
+# After seeing the code, select [R]
+# Enter your request, such as:
+#   - "add error handling"
+#   - "add comments explaining each step"
+#   - "make it work with pipeline input"
+#   - "explain what this code does"
+# The LLM will respond based on your request
 ```
 
 ### Override Configuration Per Command

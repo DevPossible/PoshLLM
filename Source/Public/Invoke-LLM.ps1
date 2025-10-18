@@ -221,35 +221,117 @@ function Invoke-LLM {
             # Extract the code block
             $codeBlock = $matches[1]
             
-            Write-Host "LLM Response contains code:" -ForegroundColor Yellow
-            Write-Host ""
+            # Track alternate suggestions to avoid repeats
+            $alternateHistory = @()
+            $continuePrompting = $true
             
-            # Display the code with syntax highlighting
-            Show-SyntaxHighlightedCode -Code $codeBlock
-            Write-Host ""
-            
-            # Prompt user for action
-            $choice = Show-CodeActionPrompt -Code $codeBlock
-            switch ($choice) {
-                1 { 
-                    # Execute the code
-                    try {
-                        Invoke-Expression $codeBlock
-                        Write-Host "Code executed successfully." -ForegroundColor Green
+            while ($continuePrompting) {
+                Write-Host "LLM Response contains code:" -ForegroundColor Yellow
+                Write-Host ""
+                
+                # Display the code with syntax highlighting
+                Show-SyntaxHighlightedCode -Code $codeBlock
+                Write-Host ""
+                
+                # Prompt user for action
+                $choice = Show-CodeActionPrompt -Code $codeBlock
+                switch ($choice) {
+                    1 { 
+                        # Execute the code
+                        try {
+                            Invoke-Expression $codeBlock
+                            Write-Host "Code executed successfully." -ForegroundColor Green
+                            $continuePrompting = $false
+                        }
+                        catch {
+                            Write-Error "Failed to execute code: $($_.Exception.Message)"
+                        }
                     }
-                    catch {
-                        Write-Error "Failed to execute code: $($_.Exception.Message)"
+                    2 { 
+                        # Copy to clipboard
+                        Add-Content -Path $env:TEMP\PoshLLM_Code.txt -Value $codeBlock
+                        Set-Clipboard -Value $codeBlock
+                        Write-Host "Code copied to clipboard." -ForegroundColor Green
+                        $continuePrompting = $false
                     }
-                }
-                2 { 
-                    # Copy to clipboard
-                    Add-Content -Path $env:TEMP\PoshLLM_Code.txt -Value $codeBlock
-                    Set-Clipboard -Value $codeBlock
-                    Write-Host "Code copied to clipboard." -ForegroundColor Green
-                }
-                3 { 
-                    # Exit
-                    Write-Host "Exiting without executing code." -ForegroundColor Yellow
+                    3 { 
+                        # Exit
+                        Write-Host "Exiting without executing code." -ForegroundColor Yellow
+                        $continuePrompting = $false
+                    }
+                    4 {
+                        # Fix - Ask LLM to clean up the suggestion
+                        Write-Host "Requesting LLM to fix the suggestion..." -ForegroundColor Yellow
+                        
+                        $fixPrompt = "There seems to be an issue with the following PowerShell script suggestion. Please review it and provide a corrected version that addresses any potential issues:`n`n``````powershell`n$codeBlock`n```````n`nPlease provide the fixed script wrapped in a code block."
+                        
+                        $fixResponse = Send-ToLLM -InputText $fixPrompt -Config $finalConfig
+                        
+                        if ($fixResponse -and ($fixResponse -match '(?s)```(?:\w+)?\s*(.*?)```')) {
+                            $codeBlock = $matches[1]
+                            Write-Host ""
+                        }
+                        else {
+                            Write-Warning "No valid code block received from LLM fix attempt."
+                            $continuePrompting = $false
+                        }
+                    }
+                    5 {
+                        # Alternate - Ask LLM for a different solution
+                        Write-Host "Requesting an alternate solution from LLM..." -ForegroundColor Yellow
+                        
+                        # Add current suggestion to history
+                        $alternateHistory += $codeBlock
+                        
+                        # Build prompt with history of previous suggestions
+                        $alternatePrompt = "Please provide an ALTERNATE solution to this request:`n`n$Prompt`n`n"
+                        $alternatePrompt += "The following solution(s) have already been suggested. Please provide a DIFFERENT approach:`n`n"
+                        
+                        for ($i = 0; $i -lt $alternateHistory.Count; $i++) {
+                            $alternatePrompt += "Solution $($i + 1):`n``````powershell`n$($alternateHistory[$i])`n```````n`n"
+                        }
+                        
+                        $alternatePrompt += "Please provide an alternate PowerShell script solution wrapped in a code block."
+                        
+                        $alternateResponse = Send-ToLLM -InputText $alternatePrompt -Config $finalConfig
+                        
+                        if ($alternateResponse -and ($alternateResponse -match '(?s)```(?:\w+)?\s*(.*?)```')) {
+                            $codeBlock = $matches[1]
+                            Write-Host ""
+                        }
+                        else {
+                            Write-Warning "No valid code block received from LLM alternate attempt."
+                            $continuePrompting = $false
+                        }
+                    }
+                    6 {
+                        # Redirect - User provides custom prompt with the suggested script in context
+                        Write-Host ""
+                        $redirectInput = Read-Host "Enter your redirect prompt (what would you like the LLM to do with this script?)"
+                        
+                        if (-not [string]::IsNullOrWhiteSpace($redirectInput)) {
+                            Write-Host "Sending redirect request to LLM..." -ForegroundColor Yellow
+                            
+                            $redirectPrompt = "$redirectInput`n`nContext - Current suggested script:`n``````powershell`n$codeBlock`n```````n`nPlease respond to the request above."
+                            
+                            $redirectResponse = Send-ToLLM -InputText $redirectPrompt -Config $finalConfig
+                            
+                            if ($redirectResponse -and ($redirectResponse -match '(?s)```(?:\w+)?\s*(.*?)```')) {
+                                $codeBlock = $matches[1]
+                                Write-Host ""
+                            }
+                            else {
+                                # No code block in response, display as text
+                                Write-Host "LLM Response:" -ForegroundColor Green
+                                Write-Host $redirectResponse -ForegroundColor Cyan
+                                $continuePrompting = $false
+                            }
+                        }
+                        else {
+                            Write-Warning "No redirect prompt provided."
+                            $continuePrompting = $false
+                        }
+                    }
                 }
             }
         }
@@ -475,17 +557,20 @@ function Show-CodeActionPrompt {
     
     Write-Host ""
     do {
-        $choice = Read-Host "[C]opy to clipboard (default), [E]xecute, or E[x]it"
+        $choice = Read-Host "[C]opy to clipboard (default), [E]xecute, [F]ix, [A]lternate, [R]edirect, or E[x]it"
         if ([string]::IsNullOrWhiteSpace($choice)) {
             $choice = "C"
         }
         $choice = $choice.ToUpper()
-    } while ($choice -notmatch '^[CEX]$')
+    } while ($choice -notmatch '^[CEFARX]$')
     
     # Convert letter to number for backward compatibility with switch statement
     switch ($choice) {
         "E" { return 1 }
         "C" { return 2 }
         "X" { return 3 }
+        "F" { return 4 }
+        "A" { return 5 }
+        "R" { return 6 }
     }
 }
