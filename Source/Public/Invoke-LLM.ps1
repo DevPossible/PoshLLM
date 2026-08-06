@@ -449,7 +449,13 @@ function Send-ToOllama {
             stream = $false
             model = $modelToUse
         }
-        
+
+        # Pass ContextSize through to Ollama's num_ctx option so it actually
+        # controls the model's context window instead of being validated and discarded
+        if ($Config.ContainsKey('ContextSize') -and $Config.ContextSize) {
+            $body.options = @{ num_ctx = $Config.ContextSize }
+        }
+
         $body = $body | ConvertTo-Json
         
         # Send request to Ollama
