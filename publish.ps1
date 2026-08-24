@@ -186,3 +186,7 @@ try {
     Write-Host "- Module manifest validation errors" -ForegroundColor Yellow
     exit 1
 }
+
+# Explicit success exit so callers checking $LASTEXITCODE (e.g. the GitHub Actions
+# publish workflow) do not read a stale exit code from an earlier native command.
+exit 0
