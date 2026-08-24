@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-23
+
+### Fixed
+- `ContextSize` is now actually sent to Ollama as `options.num_ctx`. Previously it was validated but never included in the request, so Ollama silently fell back to its own default context window, which could truncate longer responses. (#1, thanks @glaeken1374)
+
+## [0.3.0] - 2025-10-17
+
 ### Added
 - **Fix Option ([F])** - New interactive option to ask the LLM to review and fix issues with generated code
   - Sends the suggested code back to the LLM with a prompt to identify and correct potential issues
