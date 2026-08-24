@@ -120,7 +120,11 @@ try {
                 exit 0
             }
         } else {
-            Write-Host "Force parameter specified, continuing..." -ForegroundColor Yellow
+            # PSGallery never accepts a duplicate version, so attempting to
+            # republish would always fail. Skip gracefully so CI re-runs of an
+            # already-published commit are idempotent and green.
+            Write-Host "Version $moduleVersion is already published to $Repository - nothing to publish." -ForegroundColor Green
+            exit 0
         }
     }
 } catch {
