@@ -98,12 +98,6 @@ function Invoke-LLM {
         }
     }
     
-    # Validate that we have the minimum required configuration
-    if (-not $finalConfig.ContainsKey('LLMSystem') -or [string]::IsNullOrEmpty($finalConfig.LLMSystem)) {
-        Write-Error "LLMSystem is required in configuration."
-        return
-    }
-    
     # Gather system information
     $psVersion = $PSVersionTable.PSVersion.ToString()
     $osVersion = if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) {
@@ -189,6 +183,12 @@ function Invoke-LLM {
     # If GetPrompt switch is specified, return the enhanced prompt without sending it
     if ($GetPrompt) {
         return $enhancedPrompt
+    }
+    
+    # Validate that we have the minimum required configuration
+    if (-not $finalConfig.ContainsKey('LLMSystem') -or [string]::IsNullOrEmpty($finalConfig.LLMSystem)) {
+        Write-Error "LLMSystem is required in configuration."
+        return
     }
     
     # Validate enhanced prompt size does not exceed 64KB
